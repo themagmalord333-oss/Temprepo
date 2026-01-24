@@ -2,7 +2,7 @@ import os
 import asyncio
 from pyrogram import Client, filters, enums
 from pyrogram.errors import UserNotParticipant
-from web import keep_alive  # Ye line zaroori hai Render ke liye
+from web import keep_alive 
 
 # --- 🔐 CREDENTIALS ---
 API_ID = 37314366
@@ -88,7 +88,7 @@ async def process_request(client, message):
                         await status_msg.edit(f"⏳ **Fetching Data... (Attempt {attempt+1})**")
                         continue 
                     
-                    # 2. Ignore Small Garbage Messages
+                    # 2. Ignore Small Garbage Messages (Footer only messages)
                     if len(text_content) < 40 and not log.media:
                         continue
 
@@ -106,10 +106,15 @@ async def process_request(client, message):
             return
 
         # --- DATA SENDING ---
+        
+        # Priority 1: Text Message
         if target_response.text:
             raw_content = target_response.text
+            
+            # Unwanted lines hatao
             clean_content = raw_content.replace("@DuXxZx_info", "").replace("Designed & Powered", "")
             
+            # Formatting Logic
             if "{" in clean_content and "}" in clean_content:
                 final_text = f"```json\n{clean_content}\n```\n\n{NEW_FOOTER}"
             else:
@@ -121,6 +126,7 @@ async def process_request(client, message):
             else:
                 await message.reply_text(final_text)
 
+        # Priority 2: Media/Photo
         elif target_response.media:
             raw_caption = target_response.caption or ""
             clean_caption = raw_caption.replace("@DuXxZx_info", "").replace("Designed & Powered", "")
@@ -138,6 +144,6 @@ async def process_request(client, message):
 
 print(f"🚀 Secure ANYSNAP Bot connected to @{SEARCH_GC_ID} is Live!")
 
-# --- 🔥 STARTUP ---
+# --- RENDER KEEP ALIVE ---
 keep_alive()
 app.run()
