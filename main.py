@@ -2,8 +2,9 @@ import os
 import asyncio
 from pyrogram import Client, filters, enums
 from pyrogram.errors import UserNotParticipant
+from web import keep_alive  # Ye line zaroori hai Render ke liye
 
-# --- 🔐 CREDENTIALS (FILLED) ---
+# --- 🔐 CREDENTIALS ---
 API_ID = 37314366
 API_HASH = "bd4c934697e7e91942ac911a5a287b46"
 SESSION_STRING = "BQI5Xz4Agf2g4JmQDmGNlePOel8m2UfhtsxZMh_gju-prGLyMyGCHuip9-RpjQbKvuwUapQp1nS72s9Ve9Fk0wK7GP4UhEKKtk7JMAax8aif38E5C0X22c3PofLGRWSuAvbkysipyg5N0nS53IC7dKinjuWXCSbZZnOhcQ6EFGUXtIG3XbrDKj7AcV32LUjjMIz6kENhCDnWSOTil3AZNoSlg4a5rUVYgmLiV0LJzeIFsalu9_F-GFEYnCn7R16tQzWe7lcfPznh22XeS8bwOJBh8Hjio8QhKp93XnhTG-4iUlQZoZevVtZKb6KTAwxITYmC12ksXS6Q_Zk6Fpmh9BCmPAjjfgAAAAGc59H6AA"
@@ -65,7 +66,6 @@ async def process_request(client, message):
     if len(message.command) < 2:
         return await message.reply_text(f"❌ **Data Missing!**\nUsage: `/{message.command[0]} <value>`")
 
-    # ✅ CHANGE 1: Ab yahan sirf ANYSNAP dikhega
     status_msg = await message.reply_text(f"🔍 **Searching via ANYSNAP...**")
     
     try:
@@ -85,11 +85,10 @@ async def process_request(client, message):
                     # 1. Ignore Wait Messages
                     ignore_words = ["wait", "processing", "searching", "scanning", "loading", "checking"]
                     if any(word in text_content for word in ignore_words):
-                        # ✅ CHANGE 2: Loading me bhi asli bot ka naam nahi dikhega
                         await status_msg.edit(f"⏳ **Fetching Data... (Attempt {attempt+1})**")
                         continue 
                     
-                    # 2. Ignore Small Garbage Messages (Footer only messages)
+                    # 2. Ignore Small Garbage Messages
                     if len(text_content) < 40 and not log.media:
                         continue
 
@@ -106,16 +105,11 @@ async def process_request(client, message):
                 pass
             return
 
-        # --- ✅ DATA SENDING ---
-        
-        # Priority 1: Text Message
+        # --- DATA SENDING ---
         if target_response.text:
             raw_content = target_response.text
-            
-            # Unwanted lines hatao
             clean_content = raw_content.replace("@DuXxZx_info", "").replace("Designed & Powered", "")
             
-            # Formatting Logic
             if "{" in clean_content and "}" in clean_content:
                 final_text = f"```json\n{clean_content}\n```\n\n{NEW_FOOTER}"
             else:
@@ -127,7 +121,6 @@ async def process_request(client, message):
             else:
                 await message.reply_text(final_text)
 
-        # Priority 2: Media/Photo
         elif target_response.media:
             raw_caption = target_response.caption or ""
             clean_caption = raw_caption.replace("@DuXxZx_info", "").replace("Designed & Powered", "")
@@ -144,6 +137,7 @@ async def process_request(client, message):
         await status_msg.edit(f"❌ **Error:** {str(e)}")
 
 print(f"🚀 Secure ANYSNAP Bot connected to @{SEARCH_GC_ID} is Live!")
-app.run()
 
-Ise rendar Per Hoat Karna he But Koi Change  nahu Karna Working Me
+# --- 🔥 STARTUP ---
+keep_alive()
+app.run()
