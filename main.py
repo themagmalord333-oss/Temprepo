@@ -1,8 +1,26 @@
 import os
 import asyncio
+from threading import Thread
+from flask import Flask
 from pyrogram import Client, filters, enums
 from pyrogram.errors import UserNotParticipant
-from web import keep_alive 
+
+# --- 🌐 RENDER KEEP ALIVE (Server Code) ---
+# Ye code bot ko Render par sone nahi dega
+flask_app = Flask('')
+
+@flask_app.route('/')
+def home():
+    return "ANYSNAP Bot Is Running Successfully!"
+
+def run_web():
+    # Render port uthayega ya default 8080 use karega
+    port = int(os.environ.get("PORT", 8080))
+    flask_app.run(host='0.0.0.0', port=port)
+
+def keep_alive():
+    t = Thread(target=run_web)
+    t.start()
 
 # --- 🔐 CREDENTIALS ---
 API_ID = 37314366
@@ -144,6 +162,6 @@ async def process_request(client, message):
 
 print(f"🚀 Secure ANYSNAP Bot connected to @{SEARCH_GC_ID} is Live!")
 
-# --- RENDER KEEP ALIVE ---
-keep_alive()
-app.run()
+# --- 🔥 STARTUP SEQUENCE ---
+keep_alive()  # Server start
+app.run()     # Bot start
