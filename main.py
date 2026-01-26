@@ -5,7 +5,7 @@ from threading import Thread
 from flask import Flask
 
 from pyrogram import Client, filters, enums, idle
-from pyrogram.errors import UserNotParticipant, UserAlreadyParticipant
+from pyrogram.errors import UserNotParticipant, UserAlreadyParticipant, PeerIdInvalid, UsernameInvalid
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
 # --- CONFIGURATION ---
@@ -15,10 +15,10 @@ API_HASH = "bd4c934697e7e91942ac911a5a287b46"
 # ✅ SESSION STRING
 SESSION_STRING = "BQI5Xz4ATmgtQrG4UVR5E4qQzAhUQ2kcRUfD8eRH_IN1mAQ7oAsp5bO3qNfAJCgU-N9BAt35HMXh-uR-tgYgq8lrTrbTx6edA3l3mD_OigVJ_yTDA6G3Lz30unGo3Bgo7scQzHK6uCXSRabncXw0M5lCkz-mncQLh8ayF0CewrIEc7zNaM7OQEvf9WrKTbru_yQgDx9M_D8qDE-QOeqBiWDYc365i6AIHG-1YFGZNKfEqjgh3gHpQyP6mQb4F_kKXLfULgBZpmqRen--YuKvGPwqv1ZJ_r1DICXKrpxLNGRmjo9HKZyKQ3W4Mz_So47bG1arvdxCllAPvuKYAI2BgQ0_4d-hmgAAAAGc59H6AA"
 
-# 🎯 TARGET SETTINGS
-SEARCH_GROUP_ID = -1003227082022
-TARGET_INVITE_LINK = "https://t.me/QxentAI"
-TARGET_BOT_USERNAME = "XshuiBot" 
+# 🎯 TARGET SETTINGS (Updated from Screenshot)
+# Hum Link ka use karenge ID resolve karne ke liye
+TARGET_GROUP_LINK = "QxentAI"  # Username from screenshot (t.me/QxentAI)
+TARGET_BOT_USERNAME = "XshuiBot"
 
 NEW_FOOTER = "⚡ Designed & Powered by @MAGMAxRICH"
 
@@ -32,10 +32,10 @@ FSUB_CONFIG = [
 app = Client("anysnap_secure_bot", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
 
 # --- GLOBAL VARIABLE ---
-RESOLVED_TARGET_ID = SEARCH_GROUP_ID 
+RESOLVED_TARGET_ID = None # Will be set automatically
 
 # ==========================================
-# 👇 FLASK KEEP-ALIVE SERVER (RENDER FIX)
+# 👇 FLASK KEEP-ALIVE
 # ==========================================
 flask_app = Flask(__name__)
 
@@ -69,24 +69,18 @@ async def check_user_joined(client, user_id):
             pass
     return not missing 
 
-# --- HELPER: GET JOIN BUTTONS ---
 def get_fsub_buttons():
     buttons = []
     for ch in FSUB_CONFIG:
         buttons.append([InlineKeyboardButton(f"📢 Join {ch['username']}", url=ch['link'])])
-    
-    buttons.append([InlineKeyboardButton("✅ Check Subscription / Try Again", callback_data="check_fsub")])
+    buttons.append([InlineKeyboardButton("✅ Check Subscription", callback_data="check_fsub")])
     return InlineKeyboardMarkup(buttons)
 
-# --- DASHBOARD (UPDATED MENU) ---
+# --- DASHBOARD ---
 @app.on_message(filters.command(["start", "help", "menu"], prefixes="/") & (filters.private | filters.chat(ALLOWED_GROUPS)))
 async def show_dashboard(client, message):
     if not await check_user_joined(client, message.from_user.id):
-        return await message.reply_text(
-            "🚫 **Access Denied!**\n\n"
-            "Bot use karne ke liye neeche diye gaye buttons par click karke channels join karein.",
-            reply_markup=get_fsub_buttons()
-        )
+        return await message.reply_text("🚫 Access Denied! Join Channels first.", reply_markup=get_fsub_buttons())
 
     text = (
         "📖 **ANYSNAP PREMIUM DASHBOARD**\n"
@@ -112,25 +106,19 @@ async def show_dashboard(client, message):
         "🛠️ **TOOLS & SOCIAL**\n"
         "📸 Insta: `/insta <username>`\n"
         "💣 Bomber: `/bomb <number>`\n\n"
-        
-        "⚠️ **Note:** Result 30 seconds mein auto-delete ho jayega.\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        "⚡ **Designed & Powered by @MAGMAxRICH**"
+        "⚡ **Powered by @MAGMAxRICH**"
     )
     await message.reply_text(text, disable_web_page_preview=True)
 
-# --- CALLBACK HANDLER ---
 @app.on_callback_query(filters.regex("check_fsub"))
 async def check_fsub_callback(client, callback_query: CallbackQuery):
-    user_id = callback_query.from_user.id
-    if await check_user_joined(client, user_id):
+    if await check_user_joined(client, callback_query.from_user.id):
         await callback_query.message.delete()
-        await callback_query.answer("✅ Verified! Welcome back.", show_alert=False)
         await show_dashboard(client, callback_query.message)
     else:
-        await callback_query.answer("❌ Abhi bhi join nahi kiya! Pehle Channels Join Karein.", show_alert=True)
+        await callback_query.answer("❌ Join channels first!", show_alert=True)
 
-# --- MAIN LOGIC (NEW COMMANDS ADDED) ---
+# --- MAIN LOGIC ---
 COMMAND_LIST = [
     "num", "aadhar", "aadhaar", "email", "vehicle", "vnum", "familyinfo", 
     "gst", "insta", "pak", "cnic", "bomb", "ration", "fastag", "upi2num", "upiinfo"
@@ -140,12 +128,12 @@ COMMAND_LIST = [
 async def process_request(client, message):
     global RESOLVED_TARGET_ID
     
+    # Check if Target Group is Ready
+    if not RESOLVED_TARGET_ID:
+        return await message.reply_text("❌ **Error:** Target Group not connected. Contact Admin.")
+
     if not await check_user_joined(client, message.from_user.id):
-        return await message.reply_text(
-            "🚫 **Access Denied!**\n\n"
-            "Result dekhne ke liye pehle neeche diye gaye buttons se join karein:",
-            reply_markup=get_fsub_buttons()
-        )
+        return await message.reply_text("🚫 Access Denied!", reply_markup=get_fsub_buttons())
 
     if len(message.command) < 2:
         return await message.reply_text(f"❌ **Data Missing!**\nUsage: `/{message.command[0]} <value>`")
@@ -153,33 +141,33 @@ async def process_request(client, message):
     status_msg = await message.reply_text(f"🔍 **Searching via Anysnap...**")
 
     try:
-        # Forward the exact command (e.g., /gst 123) to the target
-        sent_req = await client.send_message(RESOLVED_TARGET_ID, message.text)
+        # ✅ FIX: Send message using RESOLVED ID (Integer)
+        sent_req = await client.send_message(chat_id=RESOLVED_TARGET_ID, text=message.text)
         target_response = None
 
-        # --- WAIT LOOP ---
-        for attempt in range(25): # Increased attempts slightly for heavy tools
-            await asyncio.sleep(2.5)
+        for attempt in range(25):
+            await asyncio.sleep(2)
+            # ✅ FIX: Get History using RESOLVED ID
             async for log in client.get_chat_history(RESOLVED_TARGET_ID, limit=5):
                 if log.from_user and log.from_user.username == TARGET_BOT_USERNAME:
                     if log.reply_to_message_id == sent_req.id:
                         text_content = (log.text or log.caption or "").lower()
-                        ignore_words = ["wait", "processing", "searching", "scanning", "generating", "loading", "checking"]
+                        ignore_words = ["wait", "processing", "searching", "scanning", "generating"]
                         if any(word in text_content for word in ignore_words):
-                            await status_msg.edit(f"⏳ **Target Processing... (Attempt {attempt+1})**")
+                            await status_msg.edit(f"⏳ **Processing... ({attempt+1})**")
                             break
                         target_response = log
                         break
             if target_response: break
 
         if not target_response:
-            await status_msg.edit("❌ **Timeout:** Target bot ne reply nahi diya.")
+            await status_msg.edit("❌ **Timeout:** Server is busy.")
             return
 
-        # --- Data Extraction ---
+        # Parsing
         raw_text = ""
         if target_response.document:
-            await status_msg.edit("📂 **Downloading & Parsing File...**")
+            await status_msg.edit("📂 **Downloading...**")
             file_path = await client.download_media(target_response)
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 raw_text = f.read()
@@ -190,65 +178,68 @@ async def process_request(client, message):
             raw_text = target_response.text
 
         if not raw_text or len(raw_text.strip()) < 5:
-            await status_msg.edit("❌ **No Data Found / Empty Result**")
+            await status_msg.edit("❌ **No Data Found**")
             return
 
-        # --- JSON Output ---
         json_data = {
             "status": "success",
-            "service": "Anysnap Lookup",
-            "query_type": message.command[0],
+            "query": message.command[0],
             "input": message.command[1],
-            "raw_result": raw_text.strip(),
+            "result": raw_text.strip(),
             "credits": NEW_FOOTER
         }
+        
+        formatted_output = f"```json\n{json.dumps(json_data, indent=4, ensure_ascii=False)}\n```"
 
-        final_json_str = json.dumps(json_data, indent=4, ensure_ascii=False)
-        formatted_output = f"```json\n{final_json_str}\n```"
-
-        sent_results = []
         if len(formatted_output) > 4000:
-            msg1 = await message.reply_text(formatted_output[:4000])
-            msg2 = await message.reply_text(formatted_output[4000:])
-            sent_results.extend([msg1, msg2])
+            await message.reply_text(formatted_output[:4000])
+            await message.reply_text(formatted_output[4000:])
         else:
-            msg = await message.reply_text(formatted_output)
-            sent_results.append(msg)
+            await message.reply_text(formatted_output)
 
         await status_msg.delete()
 
-        # --- Auto Delete ---
-        await asyncio.sleep(30)
-        for msg in sent_results:
-            try: await msg.delete()
-            except: pass
-
+    except PeerIdInvalid:
+        # ✅ Auto-Fix for Peer ID
+        await status_msg.edit("⚠️ **Connection Refreshing... Try again in 5 seconds.**")
+        await start_bot() # Re-trigger connection
     except Exception as e:
         await status_msg.edit(f"❌ **Error:** {str(e)}")
 
 
-# --- STARTUP FIXER ---
+# --- STARTUP FIXER (IMPROVED) ---
 async def start_bot():
     global RESOLVED_TARGET_ID
     print("🚀 Starting Bot...")
-    await app.start()
+    if not app.is_connected:
+        await app.start()
     
-    print("🔄 Checking Target Group Access...")
+    print("🔄 Resolving Target Group Peer...")
     try:
+        # ✅ METHOD 1: Join/Get by USERNAME LINK (Most Reliable)
         try:
-            chat = await app.get_chat(SEARCH_GROUP_ID)
+            chat = await app.join_chat(TARGET_GROUP_LINK)
             RESOLVED_TARGET_ID = chat.id
-            print(f"✅ Already Member! ID: {RESOLVED_TARGET_ID}")
-        except:
-            print("⚠️ Not in group. Joining via Link...")
-            chat = await app.join_chat(TARGET_INVITE_LINK)
+            print(f"✅ Joined via Link! ID: {RESOLVED_TARGET_ID}")
+        except UserAlreadyParticipant:
+            chat = await app.get_chat(TARGET_GROUP_LINK)
             RESOLVED_TARGET_ID = chat.id
-            print(f"✅ Joined Successfully! ID: {RESOLVED_TARGET_ID}")
-    except Exception as e:
-        print(f"❌ Error Joining/Finding Group: {e}")
-        RESOLVED_TARGET_ID = SEARCH_GROUP_ID
+            print(f"✅ Already in Group (Link). ID: {RESOLVED_TARGET_ID}")
+        except Exception:
+            # ✅ METHOD 2: Fallback to ID if Link fails
+            print("⚠️ Link failed, trying ID...")
+            RESOLVED_TARGET_ID = -1003227082022 # Hardcoded ID from your screenshot
+            
+        # ✅ FORCE CACHE UPDATE (Bheje hue message ko read karke)
+        print("🔄 Refreshing Peer Cache...")
+        await app.get_chat(RESOLVED_TARGET_ID)
+        print("✅ Peer Cache Updated!")
 
-    print(f"🚀 Bot is Live! Target Group ID: {RESOLVED_TARGET_ID}")
+    except Exception as e:
+        print(f"❌ CRITICAL ERROR: {e}")
+        RESOLVED_TARGET_ID = -1003227082022 # Last resort
+
+    print(f"🚀 Bot Ready! Target: {RESOLVED_TARGET_ID}")
     await idle()
     await app.stop()
 
