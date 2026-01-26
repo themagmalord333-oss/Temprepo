@@ -5,20 +5,23 @@ import subprocess
 import threading
 import time
 from telebot import types
-from flask import Flask  # ✅ Flask Import Kiya
+from flask import Flask
 
 # --- CONFIGURATION ---
 TOKEN = '8321333186:AAEWHHj7OpeS8lARdm1vNjcWOd2ilrc2vWE' 
-REQUEST_ID = 5524555108  # Admin Account ID
+REQUEST_ID = 6927405562  # Admin Account ID
 OWNER_ID = 8081343902    # Aapki Owner ID
 
 # --- MAIN CHANNEL MONITOR ---
+# Bot must be ADMIN here
 MAIN_FORCE_CHANNEL = "@Anysnapupdate" 
 MAIN_FORCE_GROUP = "@Anysnapsupport"
+CHANNEL_LINK = "https://t.me/Anysnapupdate"
+GROUP_LINK = "https://t.me/Anysnapsupport"
 # ----------------------------
 
 # ==========================================
-# 🔥 FLASK WEB SERVER (KEEP ALIVE)
+# 🔥 FLASK WEB SERVER
 # ==========================================
 app = Flask(__name__)
 
@@ -27,7 +30,6 @@ def home():
     return "🤖 Bot is Running 24/7!"
 
 def run_web():
-    # Render/Replit automatically sets the PORT environment variable
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
 
@@ -41,7 +43,7 @@ running_bots = {}
 if not os.path.exists('clones'): os.makedirs('clones')
 
 # ==========================================
-# 1. DATA MANAGEMENT (REFERRAL SYSTEM)
+# 1. DATA MANAGEMENT (SMART REFERRAL SYSTEM)
 # ==========================================
 USER_DATA_FILE = "users.json"
 
@@ -58,22 +60,44 @@ def get_user_ref_count(user_id):
     data = load_users()
     return data.get(str(user_id), {}).get('referrals', 0)
 
-def add_referral(referrer_id, new_user_id):
+# Step 1: Sirf Pending me daalo (Point mat do abhi)
+def set_pending_referral(new_user_id, referrer_id):
     data = load_users()
-    referrer_id = str(referrer_id)
     new_user_id = str(new_user_id)
-    
+    referrer_id = str(referrer_id)
+
+    if new_user_id == referrer_id: return # Khud ko refer nahi kar sakte
+
     if new_user_id not in data:
-        data[new_user_id] = {'referrals': 0, 'invited_by': None}
+        data[new_user_id] = {'referrals': 0, 'invited_by': None, 'pending_ref': None}
     
-    if data[new_user_id]['invited_by'] is None and referrer_id != new_user_id:
-        data[new_user_id]['invited_by'] = referrer_id
-        if referrer_id not in data:
-            data[referrer_id] = {'referrals': 0, 'invited_by': None} 
-        data[referrer_id]['referrals'] += 1
+    # Agar pehle se invited nahi hai, to pending me daal do
+    if data[new_user_id].get('invited_by') is None:
+        data[new_user_id]['pending_ref'] = referrer_id
         save_users(data)
-        return True
-    return False
+
+# Step 2: Jab Join kar le, tab Point do
+def confirm_referral(user_id):
+    data = load_users()
+    user_id = str(user_id)
+    
+    if user_id in data and data[user_id].get('pending_ref'):
+        referrer_id = data[user_id]['pending_ref']
+        
+        # Verify Referrer exists
+        if referrer_id not in data:
+            data[referrer_id] = {'referrals': 0, 'invited_by': None}
+
+        # Point Add Karo
+        data[referrer_id]['referrals'] += 1
+        
+        # Invite Confirm Karo
+        data[user_id]['invited_by'] = referrer_id
+        data[user_id]['pending_ref'] = None # Pending clear
+        
+        save_users(data)
+        return referrer_id # ID return karo taaki notification bhej sakein
+    return None
 
 def deduct_referrals(user_id, amount):
     data = load_users()
@@ -85,7 +109,32 @@ def deduct_referrals(user_id, amount):
     return False
 
 # ==========================================
-# 2. SECURITY MONITOR
+# 2. FORCE JOIN CHECKER
+# ==========================================
+def is_user_joined_main(user_id):
+    try:
+        # Check Channel
+        stat_c = bot.get_chat_member(MAIN_FORCE_CHANNEL, user_id).status
+        if stat_c not in ['creator', 'administrator', 'member']: return False
+        
+        # Check Group
+        stat_g = bot.get_chat_member(MAIN_FORCE_GROUP, user_id).status
+        if stat_g not in ['creator', 'administrator', 'member']: return False
+        
+        return True
+    except:
+        # Agar Bot admin nahi hai to Safety ke liye True
+        return True
+
+def get_main_join_markup():
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK))
+    markup.add(types.InlineKeyboardButton("👥 Join Group", url=GROUP_LINK))
+    markup.add(types.InlineKeyboardButton("✅ Checked / Verify", callback_data="check_main_join"))
+    return markup
+
+# ==========================================
+# 3. SECURITY MONITOR
 # ==========================================
 def monitor_clone_owners():
     while True:
@@ -119,7 +168,7 @@ def stop_user_bots(user_id):
             except: pass
 
 # ==========================================
-# 3. CLONE BOT TEMPLATE
+# 4. CLONE BOT TEMPLATE
 # ==========================================
 def get_clone_code(token, bot_username, custom_credit, force_subs_list):
     return f'''
@@ -230,19 +279,35 @@ while True:
 '''
 
 # ==========================================
-# 4. SETUP WIZARD & REFERRAL HANDLING
+# 5. HANDLERS (START & CLONE)
 # ==========================================
 
 @bot.message_handler(commands=['start'])
 def welcome(m):
+    user_id = m.from_user.id
+    
+    # 1. Store Referral as PENDING (Do not give credit yet)
     args = m.text.split()
     if len(args) > 1:
         referrer_id = args[1]
-        if referrer_id.isdigit() and int(referrer_id) != m.from_user.id:
-            if add_referral(referrer_id, m.from_user.id):
-                try: bot.send_message(referrer_id, f"🎉 **New Referral!**\nUser: {m.from_user.first_name}\n\nYou now have {get_user_ref_count(referrer_id)} points.")
-                except: pass
+        if referrer_id.isdigit():
+            set_pending_referral(user_id, referrer_id)
 
+    # 2. Check Force Join BEFORE showing Menu
+    if not is_user_joined_main(user_id):
+        bot.send_message(m.chat.id, "⚠️ **You must Join our Channels to use this Bot!**\n\n👇 Click below to Join & Verify.", reply_markup=get_main_join_markup())
+        return
+
+    # 3. If Joined, Confirm Referral (Give credit now)
+    ref_id = confirm_referral(user_id)
+    if ref_id:
+        try: bot.send_message(ref_id, f"🎉 **New Referral Verified!**\nUser: {m.from_user.first_name}\n\nBalance: {get_user_ref_count(ref_id)} Points")
+        except: pass
+
+    # 4. Show Welcome Menu
+    show_main_menu(m)
+
+def show_main_menu(m):
     ref_link = f"https://t.me/{bot.get_me().username}?start={m.from_user.id}"
     refs = get_user_ref_count(m.from_user.id)
     
@@ -252,12 +317,37 @@ def welcome(m):
             f"📊 **Your Refs:** {refs}\n"
             f"🔗 **Your Link:** `{ref_link}`\n\n"
             f"👇 Click /clone to start.")
-            
     bot.reply_to(m, text, parse_mode="Markdown")
+
+# --- CALLBACK: MAIN JOIN CHECK ---
+@bot.callback_query_handler(func=lambda call: call.data == "check_main_join")
+def check_main_join(call):
+    if is_user_joined_main(call.from_user.id):
+        # 1. Delete "Join" Msg
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+        
+        # 2. Confirm Referral (Give credit now)
+        ref_id = confirm_referral(call.from_user.id)
+        if ref_id:
+            try: bot.send_message(ref_id, f"🎉 **New Referral Verified!**\nUser: {call.from_user.first_name}\n\nBalance: {get_user_ref_count(ref_id)} Points")
+            except: pass
+            
+        # 3. Show Menu
+        bot.send_message(call.message.chat.id, "✅ **Verified!**")
+        show_main_menu(call.message)
+    else:
+        bot.answer_callback_query(call.id, "❌ Not Joined Yet!", show_alert=True)
 
 @bot.message_handler(commands=['clone'])
 def ask_token(m):
     user_id = m.from_user.id
+    
+    # Force Join Check (Double Safety)
+    if not is_user_joined_main(user_id):
+        bot.send_message(m.chat.id, "⚠️ **Join Channels First!**", reply_markup=get_main_join_markup())
+        return
+    
+    # Referral Check
     if user_id != OWNER_ID:
         refs = get_user_ref_count(user_id)
         if refs < 2:
@@ -348,7 +438,7 @@ def create_bot_final(m, token, bot_username, custom_credit, subs_list):
         bot.reply_to(m, f"❌ Error: {e}")
 
 # ==========================================
-# 5. RUNNER
+# 6. RUNNER
 # ==========================================
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith(('app|', 'rej|')))
@@ -394,13 +484,8 @@ def autostart():
                     except: pass
 
 if __name__ == "__main__":
-    # 🔥 Thread 1: Web Server
     threading.Thread(target=run_web, daemon=True).start()
-    
-    # 🔥 Thread 2: Security Monitor
     threading.Thread(target=monitor_clone_owners, daemon=True).start()
-    
-    # 🔥 Start Main Bot
     autostart()
     print("🤖 Main Hosting Bot Running...")
     bot.infinity_polling()
