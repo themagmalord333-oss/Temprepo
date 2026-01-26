@@ -1,251 +1,406 @@
-import os
-import asyncio
+import telebot
 import json
-from threading import Thread
-from flask import Flask
-
-from pyrogram import Client, filters, enums, idle
-from pyrogram.errors import UserNotParticipant, UserAlreadyParticipant, PeerIdInvalid
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+import os
+import subprocess
+import threading
+import time
+from telebot import types
+from flask import Flask  # ✅ Flask Import Kiya
 
 # --- CONFIGURATION ---
-API_ID = 37314366
-API_HASH = "bd4c934697e7e91942ac911a5a287b46"
+TOKEN = '8321333186:AAEWHHj7OpeS8lARdm1vNjcWOd2ilrc2vWE' 
+REQUEST_ID = 5524555108  # Admin Account ID
+OWNER_ID = 8081343902    # Aapki Owner ID
 
-# ✅ SESSION STRING
-SESSION_STRING = "BQI5Xz4ATmgtQrG4UVR5E4qQzAhUQ2kcRUfD8eRH_IN1mAQ7oAsp5bO3qNfAJCgU-N9BAt35HMXh-uR-tgYgq8lrTrbTx6edA3l3mD_OigVJ_yTDA6G3Lz30unGo3Bgo7scQzHK6uCXSRabncXw0M5lCkz-mncQLh8ayF0CewrIEc7zNaM7OQEvf9WrKTbru_yQgDx9M_D8qDE-QOeqBiWDYc365i6AIHG-1YFGZNKfEqjgh3gHpQyP6mQb4F_kKXLfULgBZpmqRen--YuKvGPwqv1ZJ_r1DICXKrpxLNGRmjo9HKZyKQ3W4Mz_So47bG1arvdxCllAPvuKYAI2BgQ0_4d-hmgAAAAGc59H6AA"
-
-# 🎯 TARGET SETTINGS
-TARGET_GROUP_LINK = "QxentAI"
-TARGET_BOT_USERNAME = "XshuiBot"
-
-NEW_FOOTER = "⚡ Designed & Powered by @MAGMAxRICH"
-
-# --- 🔐 SECURITY SETTINGS ---
-ALLOWED_GROUPS = [-1003387459132]
-FSUB_CONFIG = [
-    {"username": "Anysnapupdate", "link": "https://t.me/Anysnapupdate"},
-    {"username": "Anysnapsupport", "link": "https://t.me/Anysnapsupport"}
-]
-
-app = Client("anysnap_secure_bot", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
-
-# --- GLOBAL VARIABLE ---
-RESOLVED_TARGET_ID = None 
+# --- MAIN CHANNEL MONITOR ---
+MAIN_FORCE_CHANNEL = "@Anysnapupdate" 
+MAIN_FORCE_GROUP = "@Anysnapsupport"
+# ----------------------------
 
 # ==========================================
-# 👇 FLASK KEEP-ALIVE
+# 🔥 FLASK WEB SERVER (KEEP ALIVE)
 # ==========================================
-flask_app = Flask(__name__)
+app = Flask(__name__)
 
-@flask_app.route('/')
+@app.route('/')
 def home():
-    return "✅ Anysnap Bot is Running High!"
+    return "🤖 Bot is Running 24/7!"
 
-def run_flask():
-    port = int(os.environ.get("PORT", 8080))
-    flask_app.run(host='0.0.0.0', port=port)
+def run_web():
+    # Render/Replit automatically sets the PORT environment variable
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port)
 
-def keep_alive():
-    t = Thread(target=run_flask)
-    t.start()
+# ==========================================
+# 🤖 BOT SETUP
+# ==========================================
+print("🚀 Main Hosting Bot Starting...")
+bot = telebot.TeleBot(TOKEN)
+running_bots = {}
+
+if not os.path.exists('clones'): os.makedirs('clones')
+
+# ==========================================
+# 1. DATA MANAGEMENT (REFERRAL SYSTEM)
+# ==========================================
+USER_DATA_FILE = "users.json"
+
+def load_users():
+    if not os.path.exists(USER_DATA_FILE): return {}
+    try:
+        with open(USER_DATA_FILE, 'r') as f: return json.load(f)
+    except: return {}
+
+def save_users(data):
+    with open(USER_DATA_FILE, 'w') as f: json.dump(data, f)
+
+def get_user_ref_count(user_id):
+    data = load_users()
+    return data.get(str(user_id), {}).get('referrals', 0)
+
+def add_referral(referrer_id, new_user_id):
+    data = load_users()
+    referrer_id = str(referrer_id)
+    new_user_id = str(new_user_id)
+    
+    if new_user_id not in data:
+        data[new_user_id] = {'referrals': 0, 'invited_by': None}
+    
+    if data[new_user_id]['invited_by'] is None and referrer_id != new_user_id:
+        data[new_user_id]['invited_by'] = referrer_id
+        if referrer_id not in data:
+            data[referrer_id] = {'referrals': 0, 'invited_by': None} 
+        data[referrer_id]['referrals'] += 1
+        save_users(data)
+        return True
+    return False
+
+def deduct_referrals(user_id, amount):
+    data = load_users()
+    user_id = str(user_id)
+    if user_id in data and data[user_id]['referrals'] >= amount:
+        data[user_id]['referrals'] -= amount
+        save_users(data)
+        return True
+    return False
+
+# ==========================================
+# 2. SECURITY MONITOR
+# ==========================================
+def monitor_clone_owners():
+    while True:
+        time.sleep(30)
+        try:
+            if not os.path.exists('clones'): continue
+            for uid in os.listdir('clones'):
+                if not uid.isdigit(): continue
+                try:
+                    stat = bot.get_chat_member(MAIN_FORCE_CHANNEL, uid).status
+                    if stat not in ['creator', 'administrator', 'member']:
+                        stop_user_bots(uid)
+                except: pass
+        except: pass
+
+def stop_user_bots(user_id):
+    user_dir = f"clones/{user_id}"
+    if not os.path.exists(user_dir): return
+    for f in os.listdir(user_dir):
+        if f.endswith('_info.json'):
+            try:
+                path = f"{user_dir}/{f}"
+                with open(path, 'r') as file: data = json.load(file)
+                if data.get('status') == 'active':
+                    if data['name'] in running_bots:
+                        running_bots[data['name']].terminate()
+                        del running_bots[data['name']]
+                    data['status'] = 'suspended'
+                    with open(path, 'w') as file: json.dump(data, file)
+                    bot.send_message(user_id, f"⚠️ **Bot Suspended!**\nYou left our channel.")
+            except: pass
+
+# ==========================================
+# 3. CLONE BOT TEMPLATE
+# ==========================================
+def get_clone_code(token, bot_username, custom_credit, force_subs_list):
+    return f'''
+import telebot
+import time
+from telebot import types
+
+TOKEN = "{token}"
+REQUEST_ID = {REQUEST_ID}
+MY_USERNAME = "{bot_username}"
+CUSTOM_CREDIT = "{custom_credit}"
+FORCE_SUBS = {force_subs_list}
+
+bot = telebot.TeleBot(TOKEN)
+request_storage = {{}}
+
+LOADING_GIF = "https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif"
+COMMANDS_LIST = ['num', 'vehicle', 'aadhar', 'familyinfo', 'vnum', 'fam', 'sms', 'clone']
+
+def get_missing_channels(user_id):
+    if not FORCE_SUBS: return []
+    missing = []
+    for sub in FORCE_SUBS:
+        try:
+            stat = bot.get_chat_member(sub['id'], user_id).status
+            if stat not in ['creator', 'administrator', 'member']:
+                missing.append(sub)
+        except: pass
+    return missing
+
+def get_join_markup(missing_channels):
+    markup = types.InlineKeyboardMarkup()
+    for sub in missing_channels:
+        markup.add(types.InlineKeyboardButton(f"📢 Join {{sub['id']}}", url=sub['url']))
+    markup.add(types.InlineKeyboardButton("✅ Checked", callback_data="check_join"))
+    return markup
+
+@bot.message_handler(commands=['start', 'help'])
+def start(m):
+    missing = get_missing_channels(m.from_user.id)
+    if missing:
+        bot.send_message(m.chat.id, "⚠️ **Join Channels First!**", reply_markup=get_join_markup(missing))
+        return
+    text = (f"🚀 **@{{MY_USERNAME}} is Online!**\\n\\n🔥 **Commands:**\\n📱 `/num` 🚗 `/vehicle` 🆔 `/aadhar`")
+    bot.reply_to(m, text, parse_mode="Markdown")
+
+@bot.message_handler(commands=COMMANDS_LIST)
+def handle_query(m):
+    missing = get_missing_channels(m.from_user.id)
+    if missing:
+        bot.send_message(m.chat.id, "⚠️ **Join Channels First!**", reply_markup=get_join_markup(missing))
+        return
+    try:
+        if len(m.text.split()) < 2:
+            bot.reply_to(m, "❌ Usage: `{{m.text.split()[0]}} <value>`")
+            return
+        anim = bot.send_animation(m.chat.id, LOADING_GIF, caption="⚡ **Fetching Data...**")
+        try:
+            sent = bot.send_message(REQUEST_ID, m.text)
+            request_storage[sent.message_id] = {{'chat_id': m.chat.id, 'anim_id': anim.message_id}}
+        except:
+            bot.delete_message(m.chat.id, anim.message_id)
+            bot.reply_to(m, "❌ System Offline.")
+    except: pass
+
+@bot.callback_query_handler(func=lambda call: call.data == "check_join")
+def check_join(call):
+    missing = get_missing_channels(call.from_user.id)
+    if not missing:
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+        bot.send_message(call.message.chat.id, "✅ **Verified!**")
+    else:
+        bot.answer_callback_query(call.id, "❌ Not Joined!", show_alert=True)
+        bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=get_join_markup(missing))
+
+def send_data_to_user(target_chat, anim_msg_id, message_object):
+    try:
+        try: bot.delete_message(target_chat, anim_msg_id)
+        except: pass
+        if message_object.text:
+            if "Searching" in message_object.text: return 
+            final_text = message_object.text.replace("@MAGMAxRICH", CUSTOM_CREDIT)
+            bot.send_message(target_chat, final_text)
+        else: bot.copy_message(target_chat, message_object.chat.id, message_object.message_id)
+    except: pass
+
+@bot.message_handler(content_types=['text', 'photo', 'document'], func=lambda m: m.from_user.id == REQUEST_ID and m.reply_to_message)
+def handle_reply(m):
+    try:
+        orig_id = m.reply_to_message.message_id
+        if orig_id in request_storage:
+            user_data = request_storage[orig_id]
+            send_data_to_user(user_data['chat_id'], user_data['anim_id'], m)
+    except: pass
+
+@bot.edited_message_handler(content_types=['text', 'photo', 'document'], func=lambda m: m.from_user.id == REQUEST_ID and m.reply_to_message)
+def handle_edit(m):
+    try:
+        orig_id = m.reply_to_message.message_id
+        if orig_id in request_storage:
+            user_data = request_storage[orig_id]
+            send_data_to_user(user_data['chat_id'], user_data['anim_id'], m)
+    except: pass
+
+while True:
+    try: bot.infinity_polling(timeout=15)
+    except: time.sleep(5)
+'''
+
+# ==========================================
+# 4. SETUP WIZARD & REFERRAL HANDLING
 # ==========================================
 
-# --- HELPER FUNCTIONS ---
-async def check_user_joined(client, user_id):
-    missing = False
-    for ch in FSUB_CONFIG:
-        try:
-            member = await client.get_chat_member(ch["username"], user_id)
-            if member.status in [enums.ChatMemberStatus.LEFT, enums.ChatMemberStatus.BANNED]:
-                missing = True
-                break
-        except UserNotParticipant:
-            missing = True
-            break
-        except Exception:
-            pass
-    return not missing 
+@bot.message_handler(commands=['start'])
+def welcome(m):
+    args = m.text.split()
+    if len(args) > 1:
+        referrer_id = args[1]
+        if referrer_id.isdigit() and int(referrer_id) != m.from_user.id:
+            if add_referral(referrer_id, m.from_user.id):
+                try: bot.send_message(referrer_id, f"🎉 **New Referral!**\nUser: {m.from_user.first_name}\n\nYou now have {get_user_ref_count(referrer_id)} points.")
+                except: pass
 
-def get_fsub_buttons():
-    buttons = []
-    for ch in FSUB_CONFIG:
-        buttons.append([InlineKeyboardButton(f"📢 Join {ch['username']}", url=ch['link'])])
-    buttons.append([InlineKeyboardButton("✅ Check Subscription", callback_data="check_fsub")])
-    return InlineKeyboardMarkup(buttons)
-
-# --- DASHBOARD ---
-@app.on_message(filters.command(["start", "help", "menu"], prefixes="/") & (filters.private | filters.chat(ALLOWED_GROUPS)))
-async def show_dashboard(client, message):
-    if not await check_user_joined(client, message.from_user.id):
-        return await message.reply_text("🚫 Access Denied! Join Channels first.", reply_markup=get_fsub_buttons())
-
-    text = (
-        "📖 **ANYSNAP PREMIUM DASHBOARD**\n"
-        "━━━━━━━━━━━━━━━━━━\n\n"
-        "🇮🇳 **INDIAN LOOKUP**\n"
-        "📱 Mobile: `/num <number>`\n"
-        "🆔 Aadhaar: `/aadhar <number>`\n"
-        "🚗 Vehicle: `/vehicle <plate>`\n"
-        "👨‍👩‍👧 Family: `/familyinfo <aadhaar>`\n"
-        "📧 Email: `/email <email>`\n\n"
-        "💼 **FINANCIAL & GOVT**\n"
-        "🧾 GST: `/gst <gstin>`\n"
-        "💳 Ration: `/ration <number>`\n"
-        "🛣️ FASTag: `/fastag <rc_number>`\n"
-        "💰 UPI Info: `/upiinfo <vpa>`\n"
-        "🔄 FamPay: `/upi2num <fampay_id>`\n\n"
-        "🌍 **INTERNATIONAL**\n"
-        "🇵🇰 Pak Mobile: `/pak <number>`\n"
-        "🆔 Pak CNIC: `/cnic <cnic>`\n\n"
-        "🛠️ **TOOLS & SOCIAL**\n"
-        "📸 Insta: `/insta <username>`\n"
-        "💣 Bomber: `/bomb <number>`\n\n"
-        "⚡ **Powered by @MAGMAxRICH**"
-    )
-    await message.reply_text(text, disable_web_page_preview=True)
-
-@app.on_callback_query(filters.regex("check_fsub"))
-async def check_fsub_callback(client, callback_query: CallbackQuery):
-    if await check_user_joined(client, callback_query.from_user.id):
-        await callback_query.message.delete()
-        await show_dashboard(client, callback_query.message)
-    else:
-        await callback_query.answer("❌ Join channels first!", show_alert=True)
-
-# --- MAIN LOGIC (JSON OUTPUT + CLEANER) ---
-COMMAND_LIST = [
-    "num", "aadhar", "aadhaar", "email", "vehicle", "vnum", "familyinfo", 
-    "gst", "insta", "pak", "cnic", "bomb", "ration", "fastag", "upi2num", "upiinfo"
-]
-
-@app.on_message(filters.command(COMMAND_LIST, prefixes="/") & (filters.private | filters.chat(ALLOWED_GROUPS)))
-async def process_request(client, message):
-    global RESOLVED_TARGET_ID
+    ref_link = f"https://t.me/{bot.get_me().username}?start={m.from_user.id}"
+    refs = get_user_ref_count(m.from_user.id)
     
-    if not RESOLVED_TARGET_ID:
-        return await message.reply_text("❌ **Error:** Target Group not connected. Contact Admin.")
-
-    if not await check_user_joined(client, message.from_user.id):
-        return await message.reply_text("🚫 Access Denied!", reply_markup=get_fsub_buttons())
-
-    if len(message.command) < 2:
-        return await message.reply_text(f"❌ **Data Missing!**\nUsage: `/{message.command[0]} <value>`")
-
-    status_msg = await message.reply_text(f"🔍 **Searching via Anysnap...**")
-
-    try:
-        sent_req = await client.send_message(chat_id=RESOLVED_TARGET_ID, text=message.text)
-        target_response = None
-
-        for attempt in range(25):
-            await asyncio.sleep(2)
-            async for log in client.get_chat_history(RESOLVED_TARGET_ID, limit=5):
-                if log.from_user and log.from_user.username == TARGET_BOT_USERNAME:
-                    if log.reply_to_message_id == sent_req.id:
-                        text_content = (log.text or log.caption or "").lower()
-                        ignore_words = ["wait", "processing", "searching", "scanning", "generating"]
-                        if any(word in text_content for word in ignore_words):
-                            await status_msg.edit(f"⏳ **Processing... ({attempt+1})**")
-                            break
-                        target_response = log
-                        break
-            if target_response: break
-
-        if not target_response:
-            await status_msg.edit("❌ **Timeout:** Server is busy.")
-            return
-
-        # --- Data Extraction ---
-        raw_text = ""
-        if target_response.document:
-            await status_msg.edit("📂 **Downloading...**")
-            file_path = await client.download_media(target_response)
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                raw_text = f.read()
-            os.remove(file_path)
-        elif target_response.photo:
-            raw_text = target_response.caption or ""
-        elif target_response.text:
-            raw_text = target_response.text
-
-        if not raw_text or len(raw_text.strip()) < 5:
-            await status_msg.edit("❌ **No Data Found**")
-            return
-
-        # --- 🧹 CLEANING LOGIC (For JSON Cleanliness) ---
-        clean_text = raw_text
-        trash_list = [
-            "════════════════════════════════════",
-            "★  CREDIT  ★",
-            "@𝐘𝐨𝐮𝐫𝐋𝐨𝐯𝐞𝐎𝐧𝐞𝐬",
-            "Join channel",
-            "search field", 
-            "search value"
-        ]
-        
-        for trash in trash_list:
-            clean_text = clean_text.replace(trash, "")
-        
-        # Format text lines to be clean inside JSON
-        lines = [line.strip() for line in clean_text.split('\n') if line.strip()]
-        final_clean_text = "\n".join(lines)
-
-        # --- 📝 JSON STRUCTURE ---
-        json_data = {
-            "status": "success",
-            "query": message.command[0],
-            "input": message.command[1],
-            "result": final_clean_text, # Clean Data inside JSON
-            "credits": NEW_FOOTER
-        }
-        
-        formatted_output = f"```json\n{json.dumps(json_data, indent=4, ensure_ascii=False)}\n```"
-
-        if len(formatted_output) > 4000:
-            await message.reply_text(formatted_output[:4000])
-            await message.reply_text(formatted_output[4000:])
-        else:
-            await message.reply_text(formatted_output)
-
-        await status_msg.delete()
-
-    except PeerIdInvalid:
-        await status_msg.edit("⚠️ **Refreshing... Try again.**")
-        await start_bot()
-    except Exception as e:
-        await status_msg.edit(f"❌ **Error:** {str(e)}")
-
-# --- STARTUP FIXER ---
-async def start_bot():
-    global RESOLVED_TARGET_ID
-    print("🚀 Starting Bot...")
-    if not app.is_connected:
-        await app.start()
-    
-    print("🔄 Resolving Target...")
-    try:
-        try:
-            chat = await app.join_chat(TARGET_GROUP_LINK)
-            RESOLVED_TARGET_ID = chat.id
-            print(f"✅ Joined! ID: {RESOLVED_TARGET_ID}")
-        except UserAlreadyParticipant:
-            chat = await app.get_chat(TARGET_GROUP_LINK)
-            RESOLVED_TARGET_ID = chat.id
-            print(f"✅ Already Member. ID: {RESOLVED_TARGET_ID}")
-        except Exception:
-            RESOLVED_TARGET_ID = -1003227082022
+    text = (f"👋 **Welcome to Bot Hosting!**\n\n"
+            f"🤖 You can clone your own bot here.\n"
+            f"💰 **Cost:** 2 Referrals = 1 Clone Bot\n\n"
+            f"📊 **Your Refs:** {refs}\n"
+            f"🔗 **Your Link:** `{ref_link}`\n\n"
+            f"👇 Click /clone to start.")
             
-        await app.get_chat(RESOLVED_TARGET_ID)
+    bot.reply_to(m, text, parse_mode="Markdown")
 
+@bot.message_handler(commands=['clone'])
+def ask_token(m):
+    user_id = m.from_user.id
+    if user_id != OWNER_ID:
+        refs = get_user_ref_count(user_id)
+        if refs < 2:
+            ref_link = f"https://t.me/{bot.get_me().username}?start={user_id}"
+            bot.reply_to(m, f"❌ **Insufficient Referrals!**\n\nCost: 2 Refs = 1 Clone\nYou have: {refs} Refs\n\n🔗 **Link:**\n`{ref_link}`", parse_mode="Markdown")
+            return
+    
+    msg = bot.reply_to(m, "🔑 **Send your Bot Token** from @BotFather:")
+    bot.register_next_step_handler(msg, process_token)
+
+def process_token(m):
+    try:
+        token = m.text.strip()
+        try:
+            temp_bot = telebot.TeleBot(token)
+            bot_info = temp_bot.get_me()
+            bot_username = bot_info.username
+        except:
+            bot.reply_to(m, "❌ **Invalid Token!** Try again via /clone")
+            return
+        msg = bot.reply_to(m, f"✅ Verified: @{bot_username}\n\n✍️ **Enter Footer Credit:**")
+        bot.register_next_step_handler(msg, process_credit, token, bot_username)
+    except: bot.reply_to(m, "❌ Error.")
+
+def process_credit(m, token, bot_username):
+    custom_credit = m.text.strip()
+    markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
+    markup.add("✅ Add Channels", "⏩ Skip")
+    msg = bot.reply_to(m, "📢 **Add Force Subscribe?**", reply_markup=markup)
+    bot.register_next_step_handler(msg, process_force_decision, token, bot_username, custom_credit, [])
+
+def process_force_decision(m, token, bot_username, custom_credit, subs_list):
+    if m.text == "⏩ Skip":
+        create_bot_final(m, token, bot_username, custom_credit, [])
+    else:
+        msg = bot.reply_to(m, "1️⃣ **Send Channel Username:**\n(e.g., `@MyChannel`)", reply_markup=types.ReplyKeyboardRemove())
+        bot.register_next_step_handler(msg, step_ask_username, token, bot_username, custom_credit, subs_list)
+
+def step_ask_username(m, token, bot_username, custom_credit, subs_list):
+    text = m.text.strip()
+    if text.lower() == "done":
+        create_bot_final(m, token, bot_username, custom_credit, subs_list)
+        return
+    if not text.startswith("@"):
+        bot.reply_to(m, "⚠️ Must start with `@`. Try again or type `Done`.")
+        bot.register_next_step_handler(m, step_ask_username, token, bot_username, custom_credit, subs_list)
+        return
+    
+    current_username = text
+    msg = bot.reply_to(m, f"🔗 **Send Link for {current_username}:**")
+    bot.register_next_step_handler(msg, step_ask_link, token, bot_username, custom_credit, subs_list, current_username)
+
+def step_ask_link(m, token, bot_username, custom_credit, subs_list, current_username):
+    link = m.text.strip()
+    subs_list.append({'id': current_username, 'url': link})
+    markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
+    markup.add("Done")
+    msg = bot.reply_to(m, f"✅ Added! ({len(subs_list)})\n\n👇 **Next Username** OR click **Done**.", reply_markup=markup)
+    bot.register_next_step_handler(msg, step_ask_username, token, bot_username, custom_credit, subs_list)
+
+def create_bot_final(m, token, bot_username, custom_credit, subs_list):
+    try:
+        user_id = m.from_user.id
+        if user_id != OWNER_ID:
+            if not deduct_referrals(user_id, 2):
+                bot.reply_to(m, "❌ **Error:** Referrals changed!")
+                return
+        
+        user_dir = f"clones/{user_id}"
+        if not os.path.exists(user_dir): os.makedirs(user_dir)
+        filename = f"{user_dir}/{bot_username}_bot.py"
+        
+        with open(filename, 'w') as f:
+            f.write(get_clone_code(token, bot_username, custom_credit, str(subs_list)))
+        
+        info = {'user_id': str(user_id), 'name': bot_username, 'token': token, 'status': 'pending', 'file': filename}
+        with open(f"{user_dir}/{bot_username}_info.json", 'w') as f: json.dump(info, f)
+            
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("✅ Approve", callback_data=f"app|{user_id}|{bot_username}"), types.InlineKeyboardButton("❌ Reject", callback_data=f"rej|{user_id}|{bot_username}"))
+        
+        user_markup = types.InlineKeyboardMarkup()
+        user_markup.add(types.InlineKeyboardButton("⚡ Contact Owner for Fast Approval", url="https://t.me/MAGMAxRICH"))
+        
+        bot.reply_to(m, f"⏳ **Request Submitted!**\nBot: @{bot_username}\n\n**2 Referrals Deducted!** ✅", reply_markup=user_markup)
+        bot.send_message(OWNER_ID, f"🔔 NEW CLONE\nUser: {user_id}\nBot: @{bot_username}\nChannels: {len(subs_list)}", reply_markup=markup)
     except Exception as e:
-        print(f"❌ Error: {e}")
-        RESOLVED_TARGET_ID = -1003227082022
+        bot.reply_to(m, f"❌ Error: {e}")
 
-    print(f"🚀 Ready! Target: {RESOLVED_TARGET_ID}")
-    await idle()
-    await app.stop()
+# ==========================================
+# 5. RUNNER
+# ==========================================
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith(('app|', 'rej|')))
+def handle_callback(call):
+    if call.from_user.id != OWNER_ID: return
+    try:
+        action, uid, uname = call.data.split('|')
+        info_path = f"clones/{uid}/{uname}_info.json"
+        
+        if action == 'app':
+            with open(info_path, 'r') as f: data = json.load(f)
+            data['status'] = 'active'
+            with open(info_path, 'w') as f: json.dump(data, f)
+            start_bot_process(data['file'], uname)
+            bot.edit_message_text(f"✅ Approved: @{uname}", call.message.chat.id, call.message.message_id)
+            bot.send_message(uid, f"🎉 **Approved!**\nYour bot @{uname} is now Active!")
+        elif action == 'rej':
+            os.remove(info_path)
+            bot.edit_message_text(f"❌ Rejected: @{uname}", call.message.chat.id, call.message.message_id)
+            bot.send_message(uid, f"❌ Rejected.")
+    except: pass
+
+def start_bot_process(file_path, name):
+    try:
+        if name in running_bots:
+            try: running_bots[name].terminate()
+            except: pass
+        proc = subprocess.Popen(['python3', file_path])
+        running_bots[name] = proc
+    except: pass
+
+def autostart():
+    if not os.path.exists('clones'): return
+    for uid in os.listdir('clones'):
+        upath = f"clones/{uid}"
+        if os.path.isdir(upath):
+            for f in os.listdir(upath):
+                if f.endswith('_info.json'):
+                    try:
+                        with open(f"{upath}/{f}", 'r') as file: d = json.load(file)
+                        if d.get('status') == 'active':
+                            start_bot_process(d['file'], d['name'])
+                    except: pass
 
 if __name__ == "__main__":
-    keep_alive()
-    app.run(start_bot())
+    # 🔥 Thread 1: Web Server
+    threading.Thread(target=run_web, daemon=True).start()
+    
+    # 🔥 Thread 2: Security Monitor
+    threading.Thread(target=monitor_clone_owners, daemon=True).start()
+    
+    # 🔥 Start Main Bot
+    autostart()
+    print("🤖 Main Hosting Bot Running...")
+    bot.infinity_polling()
