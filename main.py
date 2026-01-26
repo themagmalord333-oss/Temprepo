@@ -5,7 +5,7 @@ from threading import Thread
 from flask import Flask
 
 from pyrogram import Client, filters, enums, idle
-from pyrogram.errors import UserNotParticipant, UserAlreadyParticipant, PeerIdInvalid, UsernameInvalid
+from pyrogram.errors import UserNotParticipant, UserAlreadyParticipant, PeerIdInvalid
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
 # --- CONFIGURATION ---
@@ -15,9 +15,8 @@ API_HASH = "bd4c934697e7e91942ac911a5a287b46"
 # ✅ SESSION STRING
 SESSION_STRING = "BQI5Xz4ATmgtQrG4UVR5E4qQzAhUQ2kcRUfD8eRH_IN1mAQ7oAsp5bO3qNfAJCgU-N9BAt35HMXh-uR-tgYgq8lrTrbTx6edA3l3mD_OigVJ_yTDA6G3Lz30unGo3Bgo7scQzHK6uCXSRabncXw0M5lCkz-mncQLh8ayF0CewrIEc7zNaM7OQEvf9WrKTbru_yQgDx9M_D8qDE-QOeqBiWDYc365i6AIHG-1YFGZNKfEqjgh3gHpQyP6mQb4F_kKXLfULgBZpmqRen--YuKvGPwqv1ZJ_r1DICXKrpxLNGRmjo9HKZyKQ3W4Mz_So47bG1arvdxCllAPvuKYAI2BgQ0_4d-hmgAAAAGc59H6AA"
 
-# 🎯 TARGET SETTINGS (Updated from Screenshot)
-# Hum Link ka use karenge ID resolve karne ke liye
-TARGET_GROUP_LINK = "QxentAI"  # Username from screenshot (t.me/QxentAI)
+# 🎯 TARGET SETTINGS
+TARGET_GROUP_LINK = "QxentAI"
 TARGET_BOT_USERNAME = "XshuiBot"
 
 NEW_FOOTER = "⚡ Designed & Powered by @MAGMAxRICH"
@@ -32,7 +31,7 @@ FSUB_CONFIG = [
 app = Client("anysnap_secure_bot", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
 
 # --- GLOBAL VARIABLE ---
-RESOLVED_TARGET_ID = None # Will be set automatically
+RESOLVED_TARGET_ID = None 
 
 # ==========================================
 # 👇 FLASK KEEP-ALIVE
@@ -52,8 +51,7 @@ def keep_alive():
     t.start()
 # ==========================================
 
-
-# --- HELPER: CHECK IF USER JOINED ---
+# --- HELPER FUNCTIONS ---
 async def check_user_joined(client, user_id):
     missing = False
     for ch in FSUB_CONFIG:
@@ -91,18 +89,15 @@ async def show_dashboard(client, message):
         "🚗 Vehicle: `/vehicle <plate>`\n"
         "👨‍👩‍👧 Family: `/familyinfo <aadhaar>`\n"
         "📧 Email: `/email <email>`\n\n"
-        
         "💼 **FINANCIAL & GOVT**\n"
         "🧾 GST: `/gst <gstin>`\n"
         "💳 Ration: `/ration <number>`\n"
         "🛣️ FASTag: `/fastag <rc_number>`\n"
         "💰 UPI Info: `/upiinfo <vpa>`\n"
         "🔄 FamPay: `/upi2num <fampay_id>`\n\n"
-        
         "🌍 **INTERNATIONAL**\n"
         "🇵🇰 Pak Mobile: `/pak <number>`\n"
         "🆔 Pak CNIC: `/cnic <cnic>`\n\n"
-        
         "🛠️ **TOOLS & SOCIAL**\n"
         "📸 Insta: `/insta <username>`\n"
         "💣 Bomber: `/bomb <number>`\n\n"
@@ -118,7 +113,7 @@ async def check_fsub_callback(client, callback_query: CallbackQuery):
     else:
         await callback_query.answer("❌ Join channels first!", show_alert=True)
 
-# --- MAIN LOGIC ---
+# --- MAIN LOGIC (JSON OUTPUT + CLEANER) ---
 COMMAND_LIST = [
     "num", "aadhar", "aadhaar", "email", "vehicle", "vnum", "familyinfo", 
     "gst", "insta", "pak", "cnic", "bomb", "ration", "fastag", "upi2num", "upiinfo"
@@ -128,7 +123,6 @@ COMMAND_LIST = [
 async def process_request(client, message):
     global RESOLVED_TARGET_ID
     
-    # Check if Target Group is Ready
     if not RESOLVED_TARGET_ID:
         return await message.reply_text("❌ **Error:** Target Group not connected. Contact Admin.")
 
@@ -141,13 +135,11 @@ async def process_request(client, message):
     status_msg = await message.reply_text(f"🔍 **Searching via Anysnap...**")
 
     try:
-        # ✅ FIX: Send message using RESOLVED ID (Integer)
         sent_req = await client.send_message(chat_id=RESOLVED_TARGET_ID, text=message.text)
         target_response = None
 
         for attempt in range(25):
             await asyncio.sleep(2)
-            # ✅ FIX: Get History using RESOLVED ID
             async for log in client.get_chat_history(RESOLVED_TARGET_ID, limit=5):
                 if log.from_user and log.from_user.username == TARGET_BOT_USERNAME:
                     if log.reply_to_message_id == sent_req.id:
@@ -164,7 +156,7 @@ async def process_request(client, message):
             await status_msg.edit("❌ **Timeout:** Server is busy.")
             return
 
-        # Parsing
+        # --- Data Extraction ---
         raw_text = ""
         if target_response.document:
             await status_msg.edit("📂 **Downloading...**")
@@ -181,11 +173,30 @@ async def process_request(client, message):
             await status_msg.edit("❌ **No Data Found**")
             return
 
+        # --- 🧹 CLEANING LOGIC (For JSON Cleanliness) ---
+        clean_text = raw_text
+        trash_list = [
+            "════════════════════════════════════",
+            "★  CREDIT  ★",
+            "@𝐘𝐨𝐮𝐫𝐋𝐨𝐯𝐞𝐎𝐧𝐞𝐬",
+            "Join channel",
+            "search field", 
+            "search value"
+        ]
+        
+        for trash in trash_list:
+            clean_text = clean_text.replace(trash, "")
+        
+        # Format text lines to be clean inside JSON
+        lines = [line.strip() for line in clean_text.split('\n') if line.strip()]
+        final_clean_text = "\n".join(lines)
+
+        # --- 📝 JSON STRUCTURE ---
         json_data = {
             "status": "success",
             "query": message.command[0],
             "input": message.command[1],
-            "result": raw_text.strip(),
+            "result": final_clean_text, # Clean Data inside JSON
             "credits": NEW_FOOTER
         }
         
@@ -200,46 +211,38 @@ async def process_request(client, message):
         await status_msg.delete()
 
     except PeerIdInvalid:
-        # ✅ Auto-Fix for Peer ID
-        await status_msg.edit("⚠️ **Connection Refreshing... Try again in 5 seconds.**")
-        await start_bot() # Re-trigger connection
+        await status_msg.edit("⚠️ **Refreshing... Try again.**")
+        await start_bot()
     except Exception as e:
         await status_msg.edit(f"❌ **Error:** {str(e)}")
 
-
-# --- STARTUP FIXER (IMPROVED) ---
+# --- STARTUP FIXER ---
 async def start_bot():
     global RESOLVED_TARGET_ID
     print("🚀 Starting Bot...")
     if not app.is_connected:
         await app.start()
     
-    print("🔄 Resolving Target Group Peer...")
+    print("🔄 Resolving Target...")
     try:
-        # ✅ METHOD 1: Join/Get by USERNAME LINK (Most Reliable)
         try:
             chat = await app.join_chat(TARGET_GROUP_LINK)
             RESOLVED_TARGET_ID = chat.id
-            print(f"✅ Joined via Link! ID: {RESOLVED_TARGET_ID}")
+            print(f"✅ Joined! ID: {RESOLVED_TARGET_ID}")
         except UserAlreadyParticipant:
             chat = await app.get_chat(TARGET_GROUP_LINK)
             RESOLVED_TARGET_ID = chat.id
-            print(f"✅ Already in Group (Link). ID: {RESOLVED_TARGET_ID}")
+            print(f"✅ Already Member. ID: {RESOLVED_TARGET_ID}")
         except Exception:
-            # ✅ METHOD 2: Fallback to ID if Link fails
-            print("⚠️ Link failed, trying ID...")
-            RESOLVED_TARGET_ID = -1003227082022 # Hardcoded ID from your screenshot
+            RESOLVED_TARGET_ID = -1003227082022
             
-        # ✅ FORCE CACHE UPDATE (Bheje hue message ko read karke)
-        print("🔄 Refreshing Peer Cache...")
         await app.get_chat(RESOLVED_TARGET_ID)
-        print("✅ Peer Cache Updated!")
 
     except Exception as e:
-        print(f"❌ CRITICAL ERROR: {e}")
-        RESOLVED_TARGET_ID = -1003227082022 # Last resort
+        print(f"❌ Error: {e}")
+        RESOLVED_TARGET_ID = -1003227082022
 
-    print(f"🚀 Bot Ready! Target: {RESOLVED_TARGET_ID}")
+    print(f"🚀 Ready! Target: {RESOLVED_TARGET_ID}")
     await idle()
     await app.stop()
 
