@@ -1,8 +1,8 @@
 import os
 import asyncio
 import json
-from threading import Thread  # 👈 FLASK THREADING KE LIYE
-from flask import Flask       # 👈 FLASK IMPORT
+from threading import Thread
+from flask import Flask
 
 from pyrogram import Client, filters, enums, idle
 from pyrogram.errors import UserNotParticipant, UserAlreadyParticipant
@@ -16,9 +16,9 @@ API_HASH = "bd4c934697e7e91942ac911a5a287b46"
 SESSION_STRING = "BQI5Xz4ATmgtQrG4UVR5E4qQzAhUQ2kcRUfD8eRH_IN1mAQ7oAsp5bO3qNfAJCgU-N9BAt35HMXh-uR-tgYgq8lrTrbTx6edA3l3mD_OigVJ_yTDA6G3Lz30unGo3Bgo7scQzHK6uCXSRabncXw0M5lCkz-mncQLh8ayF0CewrIEc7zNaM7OQEvf9WrKTbru_yQgDx9M_D8qDE-QOeqBiWDYc365i6AIHG-1YFGZNKfEqjgh3gHpQyP6mQb4F_kKXLfULgBZpmqRen--YuKvGPwqv1ZJ_r1DICXKrpxLNGRmjo9HKZyKQ3W4Mz_So47bG1arvdxCllAPvuKYAI2BgQ0_4d-hmgAAAAGc59H6AA"
 
 # 🎯 TARGET SETTINGS
-SEARCH_GROUP_ID = -1003227082022  
+SEARCH_GROUP_ID = -1003227082022
 TARGET_INVITE_LINK = "https://t.me/QxentAI"
-TARGET_BOT_USERNAME = "XshuiBot"
+TARGET_BOT_USERNAME = "XshuiBot" 
 
 NEW_FOOTER = "⚡ Designed & Powered by @MAGMAxRICH"
 
@@ -44,7 +44,6 @@ def home():
     return "✅ Anysnap Bot is Running High!"
 
 def run_flask():
-    # Render assigns PORT via environment variable
     port = int(os.environ.get("PORT", 8080))
     flask_app.run(host='0.0.0.0', port=port)
 
@@ -73,16 +72,13 @@ async def check_user_joined(client, user_id):
 # --- HELPER: GET JOIN BUTTONS ---
 def get_fsub_buttons():
     buttons = []
-    # Add buttons from config
     for ch in FSUB_CONFIG:
         buttons.append([InlineKeyboardButton(f"📢 Join {ch['username']}", url=ch['link'])])
     
-    # Add Check Button
     buttons.append([InlineKeyboardButton("✅ Check Subscription / Try Again", callback_data="check_fsub")])
-    
     return InlineKeyboardMarkup(buttons)
 
-# --- DASHBOARD ---
+# --- DASHBOARD (UPDATED MENU) ---
 @app.on_message(filters.command(["start", "help", "menu"], prefixes="/") & (filters.private | filters.chat(ALLOWED_GROUPS)))
 async def show_dashboard(client, message):
     if not await check_user_joined(client, message.from_user.id):
@@ -93,21 +89,30 @@ async def show_dashboard(client, message):
         )
 
     text = (
-        "📖 **ANYSNAP BOT DASHBOARD**\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        "📢 **Updates:** [Join Here](https://t.me/Anysnapupdate)\n"
-        "👥 **Support:** [Join Here](https://t.me/Anysnapsupport)\n"
+        "📖 **ANYSNAP PREMIUM DASHBOARD**\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "ᴍᴏʙɪʟᴇ: `/num 98XXXXXX10`\n"
-        "ᴀᴀᴅʜᴀᴀʀ: `/aadhaar 1234XXXX9012`\n"
-        "ɢsᴛ: `/gst 24ABCDE1234F1Z5`\n"
-        "ɪғsᴄ: `/ifsc SBIN0000000`\n"
-        "ᴜᴘɪ: `/upi username@bank`\n"
-        "ғᴀᴍ: `/fam username@fam`\n"
-        "ᴠᴇʜɪᴄʟᴇ: `/vehicle GJ01AB1234`\n"
-        "ᴛᴇʟᴇɢʀᴀᴍ: `/tg @username`\n"
-        "ᴛʀᴀᴄᴇ: `/trace 98XXXXXXXX`\n"
-        "ɢᴍᴀɪʟ: `/gmail example@gmail.com`\n\n"
+        "🇮🇳 **INDIAN LOOKUP**\n"
+        "📱 Mobile: `/num <number>`\n"
+        "🆔 Aadhaar: `/aadhar <number>`\n"
+        "🚗 Vehicle: `/vehicle <plate>`\n"
+        "👨‍👩‍👧 Family: `/familyinfo <aadhaar>`\n"
+        "📧 Email: `/email <email>`\n\n"
+        
+        "💼 **FINANCIAL & GOVT**\n"
+        "🧾 GST: `/gst <gstin>`\n"
+        "💳 Ration: `/ration <number>`\n"
+        "🛣️ FASTag: `/fastag <rc_number>`\n"
+        "💰 UPI Info: `/upiinfo <vpa>`\n"
+        "🔄 FamPay: `/upi2num <fampay_id>`\n\n"
+        
+        "🌍 **INTERNATIONAL**\n"
+        "🇵🇰 Pak Mobile: `/pak <number>`\n"
+        "🆔 Pak CNIC: `/cnic <cnic>`\n\n"
+        
+        "🛠️ **TOOLS & SOCIAL**\n"
+        "📸 Insta: `/insta <username>`\n"
+        "💣 Bomber: `/bomb <number>`\n\n"
+        
         "⚠️ **Note:** Result 30 seconds mein auto-delete ho jayega.\n"
         "━━━━━━━━━━━━━━━━━━\n"
         "⚡ **Designed & Powered by @MAGMAxRICH**"
@@ -125,8 +130,13 @@ async def check_fsub_callback(client, callback_query: CallbackQuery):
     else:
         await callback_query.answer("❌ Abhi bhi join nahi kiya! Pehle Channels Join Karein.", show_alert=True)
 
-# --- MAIN LOGIC ---
-@app.on_message(filters.command(["num", "aadhaar", "gst", "ifsc", "upi", "fam", "vehicle", "tg", "trace", "gmail"], prefixes="/") & (filters.private | filters.chat(ALLOWED_GROUPS)))
+# --- MAIN LOGIC (NEW COMMANDS ADDED) ---
+COMMAND_LIST = [
+    "num", "aadhar", "aadhaar", "email", "vehicle", "vnum", "familyinfo", 
+    "gst", "insta", "pak", "cnic", "bomb", "ration", "fastag", "upi2num", "upiinfo"
+]
+
+@app.on_message(filters.command(COMMAND_LIST, prefixes="/") & (filters.private | filters.chat(ALLOWED_GROUPS)))
 async def process_request(client, message):
     global RESOLVED_TARGET_ID
     
@@ -143,10 +153,12 @@ async def process_request(client, message):
     status_msg = await message.reply_text(f"🔍 **Searching via Anysnap...**")
 
     try:
+        # Forward the exact command (e.g., /gst 123) to the target
         sent_req = await client.send_message(RESOLVED_TARGET_ID, message.text)
         target_response = None
 
-        for attempt in range(20):
+        # --- WAIT LOOP ---
+        for attempt in range(25): # Increased attempts slightly for heavy tools
             await asyncio.sleep(2.5)
             async for log in client.get_chat_history(RESOLVED_TARGET_ID, limit=5):
                 if log.from_user and log.from_user.username == TARGET_BOT_USERNAME:
@@ -154,7 +166,7 @@ async def process_request(client, message):
                         text_content = (log.text or log.caption or "").lower()
                         ignore_words = ["wait", "processing", "searching", "scanning", "generating", "loading", "checking"]
                         if any(word in text_content for word in ignore_words):
-                            await status_msg.edit(f"⏳ **DeepTrace Processing... (Attempt {attempt+1})**")
+                            await status_msg.edit(f"⏳ **Target Processing... (Attempt {attempt+1})**")
                             break
                         target_response = log
                         break
@@ -164,6 +176,7 @@ async def process_request(client, message):
             await status_msg.edit("❌ **Timeout:** Target bot ne reply nahi diya.")
             return
 
+        # --- Data Extraction ---
         raw_text = ""
         if target_response.document:
             await status_msg.edit("📂 **Downloading & Parsing File...**")
@@ -177,9 +190,10 @@ async def process_request(client, message):
             raw_text = target_response.text
 
         if not raw_text or len(raw_text.strip()) < 5:
-            await status_msg.edit("❌ **No Data Found**")
+            await status_msg.edit("❌ **No Data Found / Empty Result**")
             return
 
+        # --- JSON Output ---
         json_data = {
             "status": "success",
             "service": "Anysnap Lookup",
@@ -203,6 +217,7 @@ async def process_request(client, message):
 
         await status_msg.delete()
 
+        # --- Auto Delete ---
         await asyncio.sleep(30)
         for msg in sent_results:
             try: await msg.delete()
@@ -220,34 +235,23 @@ async def start_bot():
     
     print("🔄 Checking Target Group Access...")
     try:
-        chat = await app.join_chat(TARGET_INVITE_LINK)
-        RESOLVED_TARGET_ID = chat.id
-        print(f"✅ Freshly Joined! Target ID set to: {RESOLVED_TARGET_ID}")
-    except UserAlreadyParticipant:
-        print("✅ Already in group. Refreshing Cache...")
-        found = False
-        async for dialog in app.get_dialogs():
-            if dialog.chat.id == SEARCH_GROUP_ID:
-                RESOLVED_TARGET_ID = dialog.chat.id
-                found = True
-                print(f"✅ Found Group in Cache! ID: {RESOLVED_TARGET_ID}")
-                break
-        
-        if not found:
-            print("⚠️ Cache refresh failed. Attempting force fetch...")
-            try:
-                chat = await app.get_chat(SEARCH_GROUP_ID)
-                RESOLVED_TARGET_ID = chat.id
-                print(f"✅ Force Fetched ID: {RESOLVED_TARGET_ID}")
-            except Exception as e:
-                print(f"❌ CRITICAL: {e}")
+        try:
+            chat = await app.get_chat(SEARCH_GROUP_ID)
+            RESOLVED_TARGET_ID = chat.id
+            print(f"✅ Already Member! ID: {RESOLVED_TARGET_ID}")
+        except:
+            print("⚠️ Not in group. Joining via Link...")
+            chat = await app.join_chat(TARGET_INVITE_LINK)
+            RESOLVED_TARGET_ID = chat.id
+            print(f"✅ Joined Successfully! ID: {RESOLVED_TARGET_ID}")
+    except Exception as e:
+        print(f"❌ Error Joining/Finding Group: {e}")
+        RESOLVED_TARGET_ID = SEARCH_GROUP_ID
 
     print(f"🚀 Bot is Live! Target Group ID: {RESOLVED_TARGET_ID}")
     await idle()
     await app.stop()
 
 if __name__ == "__main__":
-    # 🔥 FLASK SERVER START
     keep_alive()
-    # 🚀 BOT START
     app.run(start_bot())
