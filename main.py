@@ -14,9 +14,9 @@ OWNER_ID = 8081343902    # Aapki Owner ID
 
 # --- MAIN CHANNEL MONITOR ---
 # Bot must be ADMIN here
-MAIN_FORCE_CHANNEL = "@Anysnapupdate" 
+MAIN_FORCE_CHANNEL = "_____" 
 MAIN_FORCE_GROUP = "@Anysnapsupport"
-CHANNEL_LINK = "https://t.me/Anysnapupdate"
+CHANNEL_LINK = "_______"
 GROUP_LINK = "https://t.me/Anysnapsupport"
 # ----------------------------
 
