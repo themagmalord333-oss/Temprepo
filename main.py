@@ -15,7 +15,7 @@ OWNER_ID = 8081343902    # Aapki Owner ID
 # --- MAIN CHANNEL MONITOR (PRIVATE) ---
 MAIN_FORCE_CHANNEL = -1003892920891 
 MAIN_FORCE_GROUP = "@Anysnapsupport"
-CHANNEL_LINK = "https://t.me/+YOUR_PRIVATE_LINK" # Apna private link yahan dalein
+CHANNEL_LINK = "https://t.me/+Om1HMs2QTHk1N2Zh" # Apna private link yahan dalein
 GROUP_LINK = "https://t.me/Anysnapsupport"
 
 CLONE_COST = 1 # 1 Referral = 1 Clone
