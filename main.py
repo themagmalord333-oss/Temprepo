@@ -9,13 +9,13 @@ from flask import Flask
 
 # --- CONFIGURATION ---
 TOKEN = '8321333186:AAEWHHj7OpeS8lARdm1vNjcWOd2ilrc2vWE' 
-REQUEST_ID = 5524555108  # Admin Account ID (Jahan data fetch ke liye request jayegi)
+REQUEST_ID = 5524555108  # Admin Account ID
 OWNER_ID = 8081343902    # Aapki Owner ID
 
-# --- MAIN CHANNEL MONITOR (PRIVATE) ---
+# --- PRIVATE CHANNEL MONITOR ---
 MAIN_FORCE_CHANNEL = -1003892920891 
 MAIN_FORCE_GROUP = "@Anysnapsupport"
-CHANNEL_LINK = "https://t.me/+Om1HMs2QTHk1N2Zh" # Apna private link yahan dalein
+CHANNEL_LINK = "https://t.me/+YOUR_PRIVATE_LINK" # Yahan apna link dalein
 GROUP_LINK = "https://t.me/Anysnapsupport"
 
 CLONE_COST = 1 # 1 Referral = 1 Clone
@@ -105,45 +105,11 @@ def get_main_join_markup():
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK))
     markup.add(types.InlineKeyboardButton("👥 Join Group", url=GROUP_LINK))
-    markup.add(types.InlineKeyboardButton("✅ Verify", callback_data="check_main_join"))
+    markup.add(types.InlineKeyboardButton("✅ Checked / Verify", callback_data="check_main_join"))
     return markup
 
 # ==========================================
-# 3. SECURITY MONITOR
-# ==========================================
-def monitor_clone_owners():
-    while True:
-        time.sleep(30)
-        try:
-            if not os.path.exists('clones'): continue
-            for uid in os.listdir('clones'):
-                if not uid.isdigit(): continue
-                try:
-                    stat = bot.get_chat_member(MAIN_FORCE_CHANNEL, uid).status
-                    if stat not in ['creator', 'administrator', 'member']:
-                        stop_user_bots(uid)
-                except: pass
-        except: pass
-
-def stop_user_bots(user_id):
-    user_dir = f"clones/{user_id}"
-    if not os.path.exists(user_dir): return
-    for f in os.listdir(user_dir):
-        if f.endswith('_info.json'):
-            try:
-                path = f"{user_dir}/{f}"
-                with open(path, 'r') as file: data = json.load(file)
-                if data.get('status') == 'active':
-                    if data['name'] in running_bots:
-                        running_bots[data['name']].terminate()
-                        del running_bots[data['name']]
-                    data['status'] = 'suspended'
-                    with open(path, 'w') as file: json.dump(data, file)
-                    bot.send_message(user_id, f"⚠️ **Bot Suspended!**\nYou left our channel.")
-            except: pass
-
-# ==========================================
-# 4. CLONE BOT TEMPLATE (SIRF /num COMMAND)
+# 4. CLONE BOT TEMPLATE (RESTORED WORKING LOGIC)
 # ==========================================
 def get_clone_code(token, bot_username, custom_credit, force_subs_list):
     return f'''
@@ -186,11 +152,11 @@ def start(m):
     if missing:
         bot.send_message(m.chat.id, "⚠️ **Join Channels First!**", reply_markup=get_join_markup(missing))
         return
-    text = (f"🚀 **@{{MY_USERNAME}} is Online!**\\n\\n📱 Use `/num <number>` to get details.")
+    text = f"🚀 **@{{MY_USERNAME}} is Online!**\\n\\n📱 Use `/num <number>` to get details."
     bot.reply_to(m, text, parse_mode="Markdown")
 
 @bot.message_handler(commands=['num'])
-def handle_num(m):
+def handle_query(m):
     missing = get_missing_channels(m.from_user.id)
     if missing:
         bot.send_message(m.chat.id, "⚠️ **Join Channels First!**", reply_markup=get_join_markup(missing))
@@ -201,9 +167,10 @@ def handle_num(m):
             return
         anim = bot.send_animation(m.chat.id, LOADING_GIF, caption="⚡ **Fetching Data...**")
         try:
+            # Original Request Sending Logic
             sent = bot.send_message(REQUEST_ID, m.text)
             request_storage[sent.message_id] = {{'chat_id': m.chat.id, 'anim_id': anim.message_id}}
-        except:
+        except Exception as e:
             bot.delete_message(m.chat.id, anim.message_id)
             bot.reply_to(m, "❌ System Offline.")
     except: pass
@@ -217,18 +184,33 @@ def check_join(call):
     else:
         bot.answer_callback_query(call.id, "❌ Not Joined!", show_alert=True)
 
+def send_data_to_user(target_chat, anim_msg_id, message_object):
+    try:
+        try: bot.delete_message(target_chat, anim_msg_id)
+        except: pass
+        if message_object.text:
+            if "Searching" in message_object.text: return 
+            final_text = message_object.text.replace("@MAGMAxRICH", CUSTOM_CREDIT)
+            bot.send_message(target_chat, final_text)
+        else: bot.copy_message(target_chat, message_object.chat.id, message_object.message_id)
+    except: pass
+
 @bot.message_handler(content_types=['text', 'photo', 'document'], func=lambda m: m.from_user.id == REQUEST_ID and m.reply_to_message)
 def handle_reply(m):
     try:
         orig_id = m.reply_to_message.message_id
         if orig_id in request_storage:
             user_data = request_storage[orig_id]
-            try: bot.delete_message(user_data['chat_id'], user_data['anim_id'])
-            except: pass
-            if m.text:
-                final_text = m.text.replace("@MAGMAxRICH", CUSTOM_CREDIT)
-                bot.send_message(user_data['chat_id'], final_text)
-            else: bot.copy_message(user_data['chat_id'], m.chat.id, m.message_id)
+            send_data_to_user(user_data['chat_id'], user_data['anim_id'], m)
+    except: pass
+
+@bot.edited_message_handler(content_types=['text', 'photo', 'document'], func=lambda m: m.from_user.id == REQUEST_ID and m.reply_to_message)
+def handle_edit(m):
+    try:
+        orig_id = m.reply_to_message.message_id
+        if orig_id in request_storage:
+            user_data = request_storage[orig_id]
+            send_data_to_user(user_data['chat_id'], user_data['anim_id'], m)
     except: pass
 
 while True:
@@ -237,7 +219,7 @@ while True:
 '''
 
 # ==========================================
-# 5. HANDLERS (START & CLONE)
+# 5. HANDLERS (MAIN BOT)
 # ==========================================
 
 @bot.message_handler(commands=['start'])
@@ -248,20 +230,17 @@ def welcome(m):
         set_pending_referral(user_id, args[1])
 
     if not is_user_joined_main(user_id):
-        bot.send_message(m.chat.id, "⚠️ **Join our Private Channel to continue!**", reply_markup=get_main_join_markup())
+        bot.send_message(m.chat.id, "⚠️ **Join Private Channel to continue!**", reply_markup=get_main_join_markup())
         return
 
-    ref_id = confirm_referral(user_id)
-    if ref_id:
-        try: bot.send_message(ref_id, f"🎉 **Referral Success!**\nBalance: {get_user_ref_count(ref_id)} Points")
-        except: pass
+    confirm_referral(user_id)
     show_main_menu(m)
 
 def show_main_menu(m):
     ref_link = f"https://t.me/{bot.get_me().username}?start={m.from_user.id}"
     refs = get_user_ref_count(m.from_user.id)
-    text = (f"👋 **Welcome!**\n💰 **Cost:** {CLONE_COST} Ref = 1 Clone\n"
-            f"📊 **Refs:** {refs}\n🔗 **Link:** `{ref_link}`\n\nClick /clone to start.")
+    text = (f"👋 **Welcome!**\n\n💰 **Cost:** {CLONE_COST} Referral = 1 Clone Bot\n"
+            f"📊 **Your Refs:** {refs}\n🔗 **Link:** `{ref_link}`\n\nClick /clone to start.")
     bot.reply_to(m, text, parse_mode="Markdown")
 
 @bot.callback_query_handler(func=lambda call: call.data == "check_main_join")
@@ -272,23 +251,25 @@ def check_main_join(call):
         bot.send_message(call.message.chat.id, "✅ **Verified!**")
         show_main_menu(call.message)
     else:
-        bot.answer_callback_query(call.id, "❌ Join Channel First!", show_alert=True)
+        bot.answer_callback_query(call.id, "❌ Not Joined Yet!", show_alert=True)
 
 @bot.message_handler(commands=['clone'])
 def ask_token(m):
     user_id = m.from_user.id
     if not is_user_joined_main(user_id):
-        bot.send_message(m.chat.id, "⚠️ Join Channels First!", reply_markup=get_main_join_markup())
+        bot.send_message(m.chat.id, "⚠️ **Join Channels First!**", reply_markup=get_main_join_markup())
         return
 
     if user_id != OWNER_ID:
         refs = get_user_ref_count(user_id)
         if refs < CLONE_COST:
-            bot.reply_to(m, f"❌ **Insufficient Refs!**\nNeed {CLONE_COST} Ref.")
+            bot.reply_to(m, f"❌ **Insufficient Referrals!**\nNeed {CLONE_COST} Ref.")
             return
 
-    msg = bot.reply_to(m, "🔑 **Send Bot Token:**")
+    msg = bot.reply_to(m, "🔑 **Send your Bot Token:**")
     bot.register_next_step_handler(msg, process_token)
+
+# ... [Baki process_token, create_bot_final logic same as before but using CLONE_COST] ...
 
 def process_token(m):
     try:
@@ -303,14 +284,14 @@ def process_credit(m, token, bot_username):
     custom_credit = m.text.strip()
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
     markup.add("✅ Add Channels", "⏩ Skip")
-    msg = bot.reply_to(m, "📢 **Force Subscribe?**", reply_markup=markup)
+    msg = bot.reply_to(m, "📢 **Add Force Subscribe?**", reply_markup=markup)
     bot.register_next_step_handler(msg, process_force_decision, token, bot_username, custom_credit, [])
 
 def process_force_decision(m, token, bot_username, custom_credit, subs_list):
     if m.text == "⏩ Skip":
         create_bot_final(m, token, bot_username, custom_credit, [])
     else:
-        msg = bot.reply_to(m, "1️⃣ **Send Channel Username:** (e.g., `@MyChannel`)", reply_markup=types.ReplyKeyboardRemove())
+        msg = bot.reply_to(m, "1️⃣ **Send Channel Username:**", reply_markup=types.ReplyKeyboardRemove())
         bot.register_next_step_handler(msg, step_ask_username, token, bot_username, custom_credit, subs_list)
 
 def step_ask_username(m, token, bot_username, custom_credit, subs_list):
@@ -327,7 +308,7 @@ def step_ask_link(m, token, bot_username, custom_credit, subs_list, current_user
     subs_list.append({'id': current_username, 'url': link})
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
     markup.add("Done")
-    msg = bot.reply_to(m, f"✅ Added! Click **Done** or send next username.", reply_markup=markup)
+    msg = bot.reply_to(m, f"✅ Added!", reply_markup=markup)
     bot.register_next_step_handler(msg, step_ask_username, token, bot_username, custom_credit, subs_list)
 
 def create_bot_final(m, token, bot_username, custom_credit, subs_list):
@@ -349,7 +330,9 @@ def create_bot_final(m, token, bot_username, custom_credit, subs_list):
         markup.add(types.InlineKeyboardButton("✅ Approve", callback_data=f"app|{user_id}|{bot_username}"), types.InlineKeyboardButton("❌ Reject", callback_data=f"rej|{user_id}|{bot_username}"))
         bot.reply_to(m, f"⏳ **Submitted!** @{bot_username}\n\n**{CLONE_COST} Ref Deducted!**")
         bot.send_message(OWNER_ID, f"🔔 NEW REQUEST: @{bot_username}", reply_markup=markup)
-    except Exception as e: bot.reply_to(m, f"❌ Error: {e}")
+    except: pass
+
+# ... [Runner code remains same] ...
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith(('app|', 'rej|')))
 def handle_callback(call):
@@ -379,12 +362,13 @@ def autostart():
         if os.path.isdir(upath):
             for f in os.listdir(upath):
                 if f.endswith('_info.json'):
-                    with open(f"{upath}/{f}", 'r') as file: d = json.load(file)
-                    if d.get('status') == 'active':
-                        start_bot_process(d['file'], d['name'])
+                    try:
+                        with open(f"{upath}/{f}", 'r') as file: d = json.load(file)
+                        if d.get('status') == 'active':
+                            start_bot_process(d['file'], d['name'])
+                    except: pass
 
 if __name__ == "__main__":
     threading.Thread(target=run_web, daemon=True).start()
-    threading.Thread(target=monitor_clone_owners, daemon=True).start()
     autostart()
     bot.infinity_polling()
